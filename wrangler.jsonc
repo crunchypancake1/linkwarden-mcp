@@ -38,6 +38,7 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"workers_dev": true,
 	"triggers": {
 		"crons": [
 			"0 * * * *"
