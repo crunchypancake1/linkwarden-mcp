@@ -1,25 +1,46 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "linkwarden-mcp",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-05-30",
-  "compatibility_flags": ["nodejs_compat"],
-  "durable_objects": {
-    "bindings": [
-      { "name": "LINKWARDEN_MCP", "class_name": "LinkwardenMCP" }
-    ]
-  },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["LinkwardenMCP"] }
-  ],
-  "kv_namespaces": [
-    { "binding": "KV", "id": "REPLACE_WITH_KV_ID", "preview_id": "REPLACE_WITH_KV_PREVIEW_ID" }
-  ],
-  "r2_buckets": [
-    { "binding": "R2_SEARCH", "bucket_name": "linkwarden-search" }
-  ],
-  "ai": { "binding": "AI" },
-  "triggers": {
-    "crons": ["0 * * * *"]
-  }
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "linkwarden-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-05-30",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "LINKWARDEN_MCP",
+				"class_name": "LinkwardenMCP"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"LinkwardenMCP"
+			]
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "9f593cf9ad3846428e188bc38dd2eba4",
+			"preview_id": "9f593cf9ad3846428e188bc38dd2eba4"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "R2_SEARCH",
+			"bucket_name": "linkwarden-search"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		]
+	}
 }
