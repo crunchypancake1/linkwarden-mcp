@@ -39,6 +39,9 @@
 		"binding": "AI"
 	},
 	"workers_dev": true,
+	"routes": [
+		{ "pattern": "linkwarden-mcp.crunchypancake.com/mcp*", "custom_domain": true }
+	],
 	"triggers": {
 		"crons": [
 			"0 * * * *"
