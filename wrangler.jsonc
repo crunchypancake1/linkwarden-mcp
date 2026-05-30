@@ -40,7 +40,7 @@
 	},
 	"workers_dev": true,
 	"routes": [
-		{ "pattern": "linkwarden-mcp.crunchypancake.com/mcp*", "custom_domain": true }
+		{ "pattern": "linkwarden-mcp.crunchypancake.com", "custom_domain": true }
 	],
 	"triggers": {
 		"crons": [
