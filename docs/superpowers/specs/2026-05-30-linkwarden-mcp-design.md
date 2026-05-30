@@ -44,21 +44,32 @@ linkwarden-mcp/
 
 ```jsonc
 {
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "linkwarden-mcp",
   "main": "src/index.ts",
-  "compatibility_date": "2025-01-01",
+  "compatibility_date": "2026-05-30",
   "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "LINKWARDEN_MCP", "class_name": "LinkwardenMCP" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LinkwardenMCP"] }],
   "kv_namespaces": [
     { "binding": "KV", "id": "<kv-namespace-id>" }
   ],
-  "ai_search": [
-    { "binding": "AI_SEARCH", "index_name": "linkwarden" }
+  "r2_buckets": [
+    { "binding": "R2_SEARCH", "bucket_name": "linkwarden-search" }
   ],
+  "ai": { "binding": "AI" },
   "triggers": {
     "crons": ["0 * * * *"]
   }
 }
 ```
+
+**Notes on bindings:**
+- `McpAgent` is a Durable Object — requires `durable_objects` + `migrations` entries with `new_sqlite_classes`
+- AI Search (AutoRAG) ingests content from R2; there is no direct push API. The sink writes text files to `R2_SEARCH`, and the AutoRAG instance is configured in the Cloudflare dashboard to index that bucket
+- `AI` binding is the standard Workers AI binding used to query the AutoRAG index
 
 **Secrets** (via `wrangler secret put`):
 - `LINKWARDEN_URL` — base URL of the Linkwarden instance
@@ -72,8 +83,10 @@ linkwarden-mcp/
 
 ```ts
 interface Env {
+  LINKWARDEN_MCP: DurableObjectNamespace;
   KV: KVNamespace;
-  AI_SEARCH: AISearch;           // Cloudflare AI Search binding
+  R2_SEARCH: R2Bucket;
+  AI: Ai;
   LINKWARDEN_URL: string;
   LINKWARDEN_TOKEN: string;
 }
@@ -190,25 +203,47 @@ interface SearchSink {
 
 ---
 
-## 8. AI Search Sink (`src/sink/ai-search.ts`)
+## 8. R2 Search Sink (`src/sink/r2-search.ts`)
 
-Implements `SearchSink` using the Cloudflare AI Search binding. Pushes docs via the Items API (no R2 intermediary needed for text content). Batches upserts to respect any API limits.
+AI Search (AutoRAG) ingests from R2 — there is no direct document push API. The sink writes each `NormalizedDoc` as a plain-text file into the R2 bucket that the AutoRAG instance monitors. Deletion removes the corresponding R2 object, which AutoRAG drops from its index on the next re-index cycle.
+
+R2 key pattern: `linkwarden/{linkId}.txt` (derived from doc ID `linkwarden:{linkId}`).
 
 ```ts
-class AISearchSink implements SearchSink {
-  constructor(private index: AISearch) {}
+class R2SearchSink implements SearchSink {
+  constructor(private bucket: R2Bucket) {}
 
   async upsert(docs: NormalizedDoc[]): Promise<void> {
-    // env.AI_SEARCH.upsert(docs) — confirm exact method name against Cloudflare docs at implementation time
+    await Promise.all(docs.map(doc =>
+      this.bucket.put(this.r2Key(doc.id), this.serialize(doc), {
+        httpMetadata: { contentType: "text/plain" },
+      })
+    ));
   }
 
   async remove(ids: string[]): Promise<void> {
-    // env.AI_SEARCH.delete(ids) — confirm exact method name
+    await Promise.all(ids.map(id => this.bucket.delete(this.r2Key(id))));
+  }
+
+  private r2Key(docId: string): string {
+    // "linkwarden:123" → "linkwarden/123.txt"
+    return `linkwarden/${docId.split(":")[1]}.txt`;
+  }
+
+  private serialize(doc: NormalizedDoc): string {
+    return [
+      `Title: ${doc.title}`,
+      `URL: ${doc.url ?? ""}`,
+      `Collection: ${doc.metadata.collection ?? ""}`,
+      `Tags: ${(doc.metadata.tags ?? []).join(", ")}`,
+      ``,
+      doc.content,
+    ].join("\n");
   }
 }
 ```
 
-> **Note:** Exact binding method names (`upsert`, `insert`, `delete`) must be verified against the Cloudflare AI Search docs at implementation time — the API was in beta and method names may have changed.
+**AutoRAG setup (dashboard):** Create a new AutoRAG instance named `linkwarden`, point its data source at the `linkwarden-search` R2 bucket. Querying via `env.AI.autorag("linkwarden").search({ query })` in any future search tool.
 
 ---
 
@@ -251,18 +286,17 @@ class AISearchSink implements SearchSink {
 ## 12. Deployment Steps (post-implementation)
 
 1. `wrangler kv namespace create linkwarden-mcp` → paste ID into `wrangler.jsonc`
-2. `wrangler ai-search index create linkwarden` → paste binding config into `wrangler.jsonc`
-3. `wrangler secret put LINKWARDEN_URL` + `wrangler secret put LINKWARDEN_TOKEN`
-4. `wrangler deploy`
-5. Apply Cloudflare Access policy to `<worker-url>/mcp`
-6. Update AI Controls connector URL to the new Worker
-7. Decommission Docker MCP container
+2. `wrangler r2 bucket create linkwarden-search`
+3. In Cloudflare dashboard: create AutoRAG instance named `linkwarden`, data source = `linkwarden-search` R2 bucket
+4. `wrangler secret put LINKWARDEN_URL` + `wrangler secret put LINKWARDEN_TOKEN`
+5. `wrangler deploy`
+6. Apply Cloudflare Access policy to `<worker-url>/mcp`
+7. Update AI Controls connector URL to the new Worker
+8. Decommission Docker MCP container
 
 ---
 
 ## Open Items (resolve at implementation time)
 
-- Confirm Cloudflare AI Search binding method names (`upsert`/`insert`/`delete`) against current docs
 - Confirm which Linkwarden link field carries archived/readable text (test against live instance; swap into `NormalizedDoc.content` if available)
-- Confirm `collectionId` is a valid filter param on `/api/v1/search` (test against live instance)
-- Confirm exact `ai_search` binding syntax in `wrangler.jsonc` (may differ from `kv_namespaces` pattern)
+- Confirm `collectionId` is a valid filter param on `/api/v1/search` (test against live instance — fall back to client-side filter if not)
