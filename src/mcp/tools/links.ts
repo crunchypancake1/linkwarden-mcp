@@ -1,8 +1,49 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { LinkwardenClient } from "../../linkwarden/api";
+import type { Env } from "../../types";
 
-export function registerLinkTools(server: McpServer, client: LinkwardenClient): void {
+export function registerLinkTools(server: McpServer, client: LinkwardenClient, env: Env): void {
+  server.tool(
+    "search_links_semantic",
+    "Semantic AI search over indexed Linkwarden links. Returns ranked results relevant to the query.",
+    {
+      query: z.string().describe("Search query"),
+      topK: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe("Max number of results (default 5)"),
+    },
+    async ({ query, topK }) => {
+      const filters = { key: "folder" as const, type: "gte" as const, value: "linkwarden/" };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results = await (env.AI as any).autorag(
+        env.AI_SEARCH_INSTANCE
+      ).search({
+        query,
+        max_num_results: topK ?? 5,
+        ranking_options: { score_threshold: 0.3 },
+        filters,
+      }) as { data: Array<{ filename: string; score: number; content: Array<{ type: string; text: string }> }> };
+
+      if (!results.data || results.data.length === 0) {
+        return { content: [{ type: "text" as const, text: "No results found." }] };
+      }
+
+      const text = results.data
+        .map((r, i) => {
+          const body = r.content.map((c) => c.text).join("\n");
+          return `[${i + 1}] ${r.filename} (score: ${r.score.toFixed(3)})\n${body}`;
+        })
+        .join("\n\n---\n\n");
+
+      return { content: [{ type: "text" as const, text }] };
+    },
+  );
   server.tool(
     "search_links",
     "Search and filter saved Linkwarden links",

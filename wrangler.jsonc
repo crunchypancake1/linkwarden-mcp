@@ -31,20 +31,29 @@
 	],
 	"r2_buckets": [
 		{
-			"binding": "R2_SEARCH",
-			"bucket_name": "linkwarden-search"
+			"binding": "SINK_BUCKET",
+			"bucket_name": "ai-search-sink"
 		}
 	],
 	"ai": {
 		"binding": "AI"
 	},
+	"vars": {
+		"AI_SEARCH_INSTANCE": "personal-search"
+	},
 	"workers_dev": true,
 	"routes": [
 		{ "pattern": "linkwarden-mcp.crunchypancake.com", "custom_domain": true }
 	],
-	"triggers": {
+ "triggers": {
 		"crons": [
 			"0 * * * *"
 		]
-	}
+	},
+ "observability": {
+  "logs": {
+   "enabled": true,
+    "invocation_logs": true
+  }
+ }
 }

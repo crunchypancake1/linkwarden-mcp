@@ -12,7 +12,7 @@ export class LinkwardenMCP extends McpAgent {
   async init(): Promise<void> {
     const env = this.env as Env;
     const client = new LinkwardenClient(env.LINKWARDEN_URL, env.LINKWARDEN_TOKEN);
-    registerLinkTools(this.server, client);
+    registerLinkTools(this.server, client, env);
     registerCollectionTools(this.server, client, env);
     registerTagTools(this.server, client);
   }

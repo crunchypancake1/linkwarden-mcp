@@ -1,10 +1,11 @@
 export interface Env {
   LINKWARDEN_MCP: DurableObjectNamespace;
   KV: KVNamespace;
-  R2_SEARCH: R2Bucket;
+  SINK_BUCKET: R2Bucket;
   AI: Ai;
   LINKWARDEN_URL: string;
   LINKWARDEN_TOKEN: string;
+  AI_SEARCH_INSTANCE: string;
 }
 
 export interface CollectionConfig {

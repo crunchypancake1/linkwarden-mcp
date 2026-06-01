@@ -8,7 +8,7 @@ import type { Env } from "../types";
 export async function runScheduled(env: Env): Promise<void> {
   const config = await loadCollectionConfig(env.KV);
   const client = new LinkwardenClient(env.LINKWARDEN_URL, env.LINKWARDEN_TOKEN);
-  const sink = new R2SearchSink(env.R2_SEARCH);
+  const sink = new R2SearchSink(env.SINK_BUCKET);
 
   const errors: string[] = [];
 

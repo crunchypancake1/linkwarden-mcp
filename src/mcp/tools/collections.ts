@@ -36,7 +36,7 @@ export function registerCollectionTools(server: McpServer, client: LinkwardenCli
     async ({ collectionIds }) => {
       const config = { mode: "allowlist" as const, collectionIds };
       await saveCollectionConfig(env.KV, config);
-      const sink = new R2SearchSink(env.R2_SEARCH);
+      const sink = new R2SearchSink(env.SINK_BUCKET);
       await reconcile(collectionIds, sink, env.KV);
       return {
         content: [{

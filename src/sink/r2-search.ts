@@ -6,30 +6,20 @@ export class R2SearchSink implements SearchSink {
   async upsert(docs: NormalizedDoc[]): Promise<void> {
     await Promise.all(
       docs.map((doc) =>
-        this.bucket.put(this.r2Key(doc.id), this.serialize(doc), {
-          httpMetadata: { contentType: "text/plain" },
+        this.bucket.put(sinkKey(doc.id), JSON.stringify(doc), {
+          httpMetadata: { contentType: "application/json" },
         }),
       ),
     );
   }
 
   async remove(ids: string[]): Promise<void> {
-    await Promise.all(ids.map((id) => this.bucket.delete(this.r2Key(id))));
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => this.bucket.delete(sinkKey(id))));
   }
+}
 
-  private r2Key(docId: string): string {
-    const linkId = docId.split(":")[1] ?? docId;
-    return `linkwarden/${linkId}.txt`;
-  }
-
-  private serialize(doc: NormalizedDoc): string {
-    return [
-      `Title: ${doc.title}`,
-      `URL: ${doc.url ?? ""}`,
-      `Collection: ${doc.metadata.collection ?? ""}`,
-      `Tags: ${(doc.metadata.tags ?? []).join(", ")}`,
-      "",
-      doc.content,
-    ].join("\n");
-  }
+function sinkKey(id: string): string {
+  const bareId = id.replace(/^linkwarden:/, "");
+  return `linkwarden/${bareId}.json`;
 }
