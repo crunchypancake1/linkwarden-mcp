@@ -67,10 +67,20 @@ export class LinkwardenClient {
     return this.request<Tag[]>("/api/v1/tags");
   }
 
+  async listLinks(params: { collectionId?: number; cursor?: number } = {}): Promise<LinkPage> {
+    const qs = new URLSearchParams();
+    if (params.collectionId != null) qs.set("collectionId", String(params.collectionId));
+    if (params.cursor != null) qs.set("cursor", String(params.cursor));
+
+    const res = await this.rawFetch(`/api/v1/links?${qs}`);
+    const json = await res.json() as { response: Link[]; nextCursor?: number | null };
+    return { links: json.response ?? [], nextCursor: json.nextCursor ?? null };
+  }
+
   async *allLinksForCollection(collectionId: number): AsyncGenerator<Link> {
     let cursor: number | null = null;
     do {
-      const page = await this.searchLinks({ collectionId, cursor: cursor ?? undefined });
+      const page = await this.listLinks({ collectionId, cursor: cursor ?? undefined });
       for (const link of page.links) yield link;
       cursor = page.nextCursor;
     } while (cursor !== null);

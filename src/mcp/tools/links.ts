@@ -1,7 +1,29 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { LinkwardenClient } from "../../linkwarden/api";
-import type { Env } from "../../types";
+import type { Env, Link, LinkPage } from "../../types";
+
+function formatLink(link: Link) {
+  return {
+    id: link.id,
+    name: link.name,
+    url: link.url,
+    ...(link.description ? { description: link.description } : {}),
+    collectionId: link.collectionId,
+    tags: link.tags?.map((t) => t.name) ?? [],
+  };
+}
+
+function formatPage(page: LinkPage) {
+  return {
+    links: page.links.map(formatLink),
+    nextCursor: page.nextCursor,
+  };
+}
+
+function text(data: unknown) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
+}
 
 export function registerLinkTools(server: McpServer, client: LinkwardenClient, env: Env): void {
   server.tool(
@@ -18,8 +40,6 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
         .describe("Max number of results (default 5)"),
     },
     async ({ query, topK }) => {
-      const filters = { key: "folder" as const, type: "gte" as const, value: "linkwarden/" };
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const results = await (env.AI as any).autorag(
         env.AI_SEARCH_INSTANCE
@@ -27,7 +47,7 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
         query,
         max_num_results: topK ?? 5,
         ranking_options: { score_threshold: 0.3 },
-        filters,
+        filters: { folder: "linkwarden/" },
       }) as { data: Array<{ filename: string; score: number; content: Array<{ type: string; text: string }> }> };
 
       if (!results.data || results.data.length === 0) {
@@ -45,6 +65,29 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
     },
   );
   server.tool(
+    "list_links",
+    "List links, optionally filtered to specific collections. With collectionIds, returns all links across those collections. Without collectionIds, returns the first page of all links with a cursor for pagination.",
+    {
+      collectionIds: z.array(z.number()).optional().describe("Collection IDs to fetch links from. If omitted, returns first page of all links."),
+      cursor: z.number().optional().describe("Pagination cursor (only used when collectionIds is omitted)"),
+    },
+    async ({ collectionIds, cursor }) => {
+      if (collectionIds && collectionIds.length > 0) {
+        const all: Link[] = [];
+        for (const id of collectionIds) {
+          for await (const link of client.allLinksForCollection(id)) {
+            all.push(link);
+          }
+        }
+        return text(all.map(formatLink));
+      }
+
+      const page = await client.listLinks({ cursor });
+      return text(formatPage(page));
+    },
+  );
+
+  server.tool(
     "search_links",
     "Search and filter saved Linkwarden links",
     {
@@ -60,7 +103,7 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
         tagName,
         cursor,
       });
-      return { content: [{ type: "text", text: JSON.stringify(page, null, 2) }] };
+      return text(formatPage(page));
     },
   );
 
@@ -70,7 +113,7 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
     { id: z.number().describe("Link ID") },
     async ({ id }) => {
       const link = await client.getLink(id);
-      return { content: [{ type: "text", text: JSON.stringify(link, null, 2) }] };
+      return text(formatLink(link));
     },
   );
 
@@ -86,7 +129,7 @@ export function registerLinkTools(server: McpServer, client: LinkwardenClient, e
     },
     async (body) => {
       const link = await client.createLink(body);
-      return { content: [{ type: "text", text: JSON.stringify(link, null, 2) }] };
+      return text(formatLink(link));
     },
   );
 
