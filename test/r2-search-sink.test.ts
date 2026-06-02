@@ -22,7 +22,7 @@ function makeMockBucket() {
 }
 
 describe("R2SearchSink", () => {
-  it("upsert writes each doc as a text file with the correct key", async () => {
+  it("upsert writes each doc as a JSON file with the correct key", async () => {
     const bucket = makeMockBucket();
     const sink = new R2SearchSink(bucket);
 
@@ -30,11 +30,11 @@ describe("R2SearchSink", () => {
 
     expect(bucket.put).toHaveBeenCalledTimes(2);
     const calls = (bucket.put as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls[0]![0]).toBe("linkwarden/42.txt");
-    expect(calls[0]![1]).toContain("Title: Test");
-    expect(calls[0]![1]).toContain("some content");
-    expect(calls[0]![2]).toEqual({ httpMetadata: { contentType: "text/plain" } });
-    expect(calls[1]![0]).toBe("linkwarden/7.txt");
+    expect(calls[0]![0]).toBe("linkwarden/42.json");
+    expect(calls[0]![1]).toContain('"title":"Test"');
+    expect(calls[0]![1]).toContain('"content":"some content"');
+    expect(calls[0]![2]).toEqual({ httpMetadata: { contentType: "application/json" } });
+    expect(calls[1]![0]).toBe("linkwarden/7.json");
   });
 
   it("remove deletes each R2 object by derived key", async () => {
@@ -45,8 +45,8 @@ describe("R2SearchSink", () => {
 
     const calls = (bucket.delete as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls).toHaveLength(2);
-    expect(calls[0]![0]).toBe("linkwarden/10.txt");
-    expect(calls[1]![0]).toBe("linkwarden/20.txt");
+    expect(calls[0]![0]).toBe("linkwarden/10.json");
+    expect(calls[1]![0]).toBe("linkwarden/20.json");
   });
 
   it("serialized content includes all metadata fields", async () => {
@@ -62,10 +62,10 @@ describe("R2SearchSink", () => {
     await sink.upsert([doc]);
 
     const body = (bucket.put as ReturnType<typeof vi.fn>).mock.calls[0]![1] as string;
-    expect(body).toContain("Title: My Link");
-    expect(body).toContain("URL: https://example.com/1");
-    expect(body).toContain("Collection: Research");
-    expect(body).toContain("Tags: ai, ml");
-    expect(body).toContain("readable text");
+    expect(body).toContain('"title":"My Link"');
+    expect(body).toContain('"url":"https://example.com/1"');
+    expect(body).toContain('"collection":"Research"');
+    expect(body).toContain('"tags":["ai","ml"]');
+    expect(body).toContain('"content":"readable text"');
   });
 });
