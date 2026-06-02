@@ -176,4 +176,40 @@ describe("processR2Event", () => {
     await processR2Event("archives/5/1234_readability.json", "PutObject", env);
     expect(upserted).toHaveLength(0);
   });
+
+  it("falls back to API description when readability textContent is empty", async () => {
+    const env = makeEnv();
+    const upserted: NormalizedDoc[] = [];
+    env.SINK_BUCKET = {
+      put: vi.fn(async (_key: string, body: string) => {
+        upserted.push(JSON.parse(body) as NormalizedDoc);
+      }),
+      delete: vi.fn(),
+      get: vi.fn(),
+      list: vi.fn(),
+      head: vi.fn(),
+      createMultipartUpload: vi.fn(),
+      resumeMultipartUpload: vi.fn(),
+    } as unknown as R2Bucket;
+
+    env.LINKWARDEN_DATA = {
+      get: vi.fn(async () => ({
+        json: async () => ({
+          title: "Article",
+          textContent: "",   // empty — should fall back
+          content: "",
+          excerpt: "",
+          byline: null,
+          siteName: null,
+          length: 0,
+        }),
+      })),
+    } as unknown as R2Bucket;
+
+    mockFetchLink(makeLink(1234, 5));  // makeLink sets description to "desc 1234"
+
+    await processR2Event("archives/5/1234_readability.json", "PutObject", env);
+
+    expect(upserted[0]!.content).toBe("desc 1234");
+  });
 });
