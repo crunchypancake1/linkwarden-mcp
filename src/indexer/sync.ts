@@ -16,7 +16,7 @@ export async function syncCollection(
       source: "linkwarden",
       title: link.name,
       url: link.url,
-      content: link.description?.trim() || link.name,
+      content: link.textContent?.trim() || link.description?.trim() || link.name,
       metadata: {
         collection: link.collection?.name,
         tags: link.tags?.map((t) => t.name),
