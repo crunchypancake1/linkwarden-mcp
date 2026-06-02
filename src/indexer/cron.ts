@@ -14,7 +14,7 @@ export async function runScheduled(env: Env): Promise<void> {
 
   for (const collectionId of config.collectionIds) {
     try {
-      await syncCollection(collectionId, client, sink, env.KV);
+      await syncCollection(collectionId, client, sink, env.KV, env.LINKWARDEN_DATA);
       console.log(`[indexer] synced collection ${collectionId}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
