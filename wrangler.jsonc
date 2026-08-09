@@ -22,48 +22,10 @@
       ]
     }
   ],
-  "kv_namespaces": [
-    {
-      "binding": "KV",
-      "id": "9f593cf9ad3846428e188bc38dd2eba4",
-      "preview_id": "9f593cf9ad3846428e188bc38dd2eba4"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "SINK_BUCKET",
-      "bucket_name": "ai-search-sink"
-    },
-    {
-      "binding": "LINKWARDEN_DATA",
-      "bucket_name": "linkwarden-data"
-    }
-  ],
-  "queues": {
-    "consumers": [
-      {
-        "queue": "linkwarden-events",
-        "max_batch_size": 20,
-        "max_batch_timeout": 5,
-        "max_retries": 3
-      }
-    ]
-  },
-  "ai": {
-    "binding": "AI"
-  },
-  "vars": {
-    "AI_SEARCH_INSTANCE": "personal-search"
-  },
   "workers_dev": true,
   "routes": [
     { "pattern": "linkwarden.crunchypancake.com/mcp", "zone_name": "crunchypancake.com" }
   ],
-  "triggers": {
-    "crons": [
-      "0 * * * *"
-    ]
-  },
   "observability": {
     "logs": {
       "enabled": true,

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { LinkwardenClient } from "../../linkwarden/api";
-import type { Env, Link, LinkPage } from "../../types";
+import type { Link, LinkPage } from "../../types";
 
 function formatLink(link: Link) {
   return {
@@ -25,45 +25,7 @@ function text(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
 }
 
-export function registerLinkTools(server: McpServer, client: LinkwardenClient, env: Env): void {
-  server.tool(
-    "search_links_semantic",
-    "Semantic AI search over indexed Linkwarden links. Returns ranked results relevant to the query.",
-    {
-      query: z.string().describe("Search query"),
-      topK: z
-        .number()
-        .int()
-        .min(1)
-        .max(20)
-        .optional()
-        .describe("Max number of results (default 5)"),
-    },
-    async ({ query, topK }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results = await (env.AI as any).autorag(
-        env.AI_SEARCH_INSTANCE
-      ).search({
-        query,
-        max_num_results: topK ?? 5,
-        ranking_options: { score_threshold: 0.3 },
-        filters: { folder: "linkwarden/" },
-      }) as { data: Array<{ filename: string; score: number; content: Array<{ type: string; text: string }> }> };
-
-      if (!results.data || results.data.length === 0) {
-        return { content: [{ type: "text" as const, text: "No results found." }] };
-      }
-
-      const text = results.data
-        .map((r, i) => {
-          const body = r.content.map((c) => c.text).join("\n");
-          return `[${i + 1}] ${r.filename} (score: ${r.score.toFixed(3)})\n${body}`;
-        })
-        .join("\n\n---\n\n");
-
-      return { content: [{ type: "text" as const, text }] };
-    },
-  );
+export function registerLinkTools(server: McpServer, client: LinkwardenClient): void {
   server.tool(
     "list_links",
     "List links, optionally filtered to specific collections. With collectionIds, returns all links across those collections. Without collectionIds, returns the first page of all links with a cursor for pagination.",
