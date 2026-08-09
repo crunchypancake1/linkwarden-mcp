@@ -50,3 +50,31 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 
 `LINKWARDEN_URL` and `LINKWARDEN_TOKEN` are secrets (`wrangler secret put`), used by
 `src/mcp/tools/*` via `LinkwardenClient` to call the live Linkwarden instance.
+
+`wrangler secret put` only affects deployed Workers. For `npm run dev`, put the same two vars in a
+gitignored `.dev.vars` at the repo root:
+
+```
+LINKWARDEN_URL=https://your-linkwarden.example.com
+LINKWARDEN_TOKEN=...
+```
+
+## Gotchas
+
+- **Response envelope** — Linkwarden wraps every payload in `{ response: T }`. `request<T>()`
+  unwraps it, but paginated endpoints (`/api/v1/search`, `/api/v1/links`) return `nextCursor` as a
+  *sibling* of `response`, so they use `rawFetch` and parse the body themselves. New paginated
+  endpoints must do the same.
+- **`list_links` with `collectionIds`** drains every page per collection via
+  `allLinksForCollection` and ignores `cursor`. Only the unfiltered path is cursor-paginated.
+- **Renaming the DO class needs a migration** — `LinkwardenMCP` is bound by class name in
+  `wrangler.jsonc` under migration tag `v1` (`new_sqlite_classes`). A rename requires a new tag.
+- **`noUncheckedIndexedAccess` is on** — `arr[0]` types as `T | undefined`; index access needs a
+  guard or `?.`.
+
+## Testing
+
+`test/linkwarden-api.test.ts` covers `LinkwardenClient` only, stubbing `globalThis.fetch` with
+`vi.spyOn` and asserting on the URL and `init` it receives. Vitest runs in a plain `node`
+environment (not `@cloudflare/vitest-pool-workers`), so Durable Object state and the MCP tool
+handlers aren't covered — test new API surface at the client layer.
