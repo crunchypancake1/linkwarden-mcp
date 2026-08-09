@@ -57,7 +57,7 @@
   },
   "workers_dev": true,
   "routes": [
-    { "pattern": "linkwarden-mcp.crunchypancake.com", "custom_domain": true }
+    { "pattern": "linkwarden.crunchypancake.com/mcp", "zone_name": "crunchypancake.com" }
   ],
   "triggers": {
     "crons": [
