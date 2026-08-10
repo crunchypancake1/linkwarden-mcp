@@ -80,6 +80,10 @@ secrets-store secret create <store-id> --name linkwarden-token --scopes workers`
   unwraps it, but paginated endpoints (`/api/v1/search`, `/api/v1/links`) return `nextCursor` as a
   *sibling* of `response`, so they use `rawFetch` and parse the body themselves. New paginated
   endpoints must do the same.
+- **`/api/v1/tags` doesn't follow the `{ response: T }` envelope** — it returns
+  `{ data: { tags: Tag[] } }` instead. `getTags()` uses `rawFetch` and parses this shape directly;
+  don't route it through `request<T>()`. Verify the actual envelope shape for any new endpoint
+  before assuming `{ response: T }` — Linkwarden isn't consistent across its API.
 - **`list_links` with `collectionIds`** drains every page per collection via
   `allLinksForCollection` and ignores `cursor`. Only the unfiltered path is cursor-paginated.
 - **Renaming the DO class needs a migration** — `LinkwardenMCP` is bound by class name in

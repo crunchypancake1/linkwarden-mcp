@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { LinkwardenClient } from "../src/linkwarden/api";
-import type { Link, Collection } from "../src/types";
+import type { Link, Collection, Tag } from "../src/types";
 
 const BASE_URL = "https://lw.example.com";
 const TOKEN = "tok-test";
@@ -61,6 +61,16 @@ describe("LinkwardenClient", () => {
     const result = await client.getCollections();
     expect(result).toHaveLength(1);
     expect(result[0]?.name).toBe("Inbox");
+  });
+
+  it("getTags unwraps the data.tags envelope", async () => {
+    const tags: Tag[] = [{ id: 1, name: "login" }];
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { tags } }), { status: 200 })
+    );
+    const result = await client.getTags();
+    expect(result).toHaveLength(1);
+    expect(result[0]?.name).toBe("login");
   });
 
   it("allLinksForCollection pages through all links", async () => {

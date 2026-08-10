@@ -64,7 +64,9 @@ export class LinkwardenClient {
   }
 
   async getTags(): Promise<Tag[]> {
-    return this.request<Tag[]>("/api/v1/tags");
+    const res = await this.rawFetch("/api/v1/tags");
+    const json = await res.json() as { data: { tags: Tag[] } };
+    return json.data.tags;
   }
 
   async listLinks(params: { collectionId?: number; cursor?: number } = {}): Promise<LinkPage> {
