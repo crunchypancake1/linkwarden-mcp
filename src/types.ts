@@ -1,7 +1,7 @@
 export interface Env {
   LINKWARDEN_MCP: DurableObjectNamespace;
   LINKWARDEN_URL: string;
-  LINKWARDEN_TOKEN: string;
+  LINKWARDEN_TOKEN: SecretsStoreSecret;
 }
 
 export interface LinkTag {

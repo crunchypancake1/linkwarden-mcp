@@ -35,8 +35,27 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 ```bash
 npm install
 wrangler secret put LINKWARDEN_URL     # base URL of your Linkwarden instance
-wrangler secret put LINKWARDEN_TOKEN   # Linkwarden API token
 ```
+
+`LINKWARDEN_TOKEN` (a Linkwarden API access token) is read from Cloudflare's
+[Secrets Store](https://developers.cloudflare.com/secrets-store/), not a plain Wrangler secret.
+Create it once per account and it's reusable across Workers:
+
+```bash
+wrangler secrets-store secret create <store-id> \
+  --name linkwarden-token --scopes workers --remote
+```
+
+`wrangler.jsonc` then binds it via `secrets_store_secrets`:
+
+```jsonc
+"secrets_store_secrets": [
+  { "binding": "LINKWARDEN_TOKEN", "store_id": "<store-id>", "secret_name": "linkwarden-token" }
+]
+```
+
+For local dev, create a local-only secret with the same name (omit `--remote`) so `wrangler dev`
+has something to read.
 
 See `CLAUDE.md` for the full architecture and binding reference.
 
@@ -50,13 +69,10 @@ npm run typecheck   # tsc --noEmit
 
 ## Deploy
 
-```bash
-npm run deploy
-```
-
-Or connect this repository to a Cloudflare Worker for git-based deploys. Either way,
-`LINKWARDEN_TOKEN` must be set as a Wrangler secret in the target environment — it is never stored
-in the repo.
+Cloudflare Workers Builds is connected to this repo — pushing to `master` deploys automatically
+(`npm run build` then `wrangler deploy`). `npm run deploy` remains available for manual/ad-hoc
+deploys. Either way, the `linkwarden-token` secret must exist in the account's Secrets Store — it
+is never stored in the repo.
 
 ## Stack
 

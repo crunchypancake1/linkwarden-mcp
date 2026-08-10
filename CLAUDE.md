@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev          # wrangler dev — local development with hot reload
-npm run deploy       # wrangler deploy — deploy to Cloudflare Workers
+npm run deploy       # wrangler deploy — manual/ad-hoc deploy to Cloudflare Workers
 npm run test         # vitest run — run all tests once
 npm run typecheck    # tsc --noEmit — type-check without emitting
 ```
@@ -15,6 +15,14 @@ Run a single test file:
 ```bash
 npx vitest run test/linkwarden-api.test.ts
 ```
+
+### Deployment
+
+Production deploys are automatic: Cloudflare Workers Builds is connected to this repo's GitHub
+integration and deploys on every push to `master` (runs `npm run build`, i.e. `tsc --noEmit`, then
+`wrangler deploy`). Don't rely on running `npm run deploy` locally to ship a change — commit and
+push to `master` instead. `npm run deploy` is still useful for one-off manual deploys (e.g. testing
+a binding change before committing), but the source of truth for what's live is `master`.
 
 ## Architecture
 
@@ -47,17 +55,24 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 | Binding | Type | Purpose |
 |---|---|---|
 | `LINKWARDEN_MCP` | Durable Object | McpAgent instance (with SQLite) |
+| `LINKWARDEN_TOKEN` | Secrets Store binding | Linkwarden API token, read via `await env.LINKWARDEN_TOKEN.get()` |
 
-`LINKWARDEN_URL` and `LINKWARDEN_TOKEN` are secrets (`wrangler secret put`), used by
-`src/mcp/tools/*` via `LinkwardenClient` to call the live Linkwarden instance.
+`LINKWARDEN_URL` is a Wrangler secret (`wrangler secret put`). `LINKWARDEN_TOKEN` is a
+[Secrets Store](https://developers.cloudflare.com/secrets-store/) binding declared under
+`secrets_store_secrets` in `wrangler.jsonc` (store `d947ac5bb8ef4800ac46fc59128a1a09`, secret name
+`linkwarden-token`), reused across Workers rather than set per-project. It's an async binding —
+resolved once in `agent.ts#init` — not a plain string like `LINKWARDEN_URL`.
 
-`wrangler secret put` only affects deployed Workers. For `npm run dev`, put the same two vars in a
+`wrangler secret put` only affects deployed Workers. For `npm run dev`, put `LINKWARDEN_URL` in a
 gitignored `.dev.vars` at the repo root:
 
 ```
 LINKWARDEN_URL=https://your-linkwarden.example.com
-LINKWARDEN_TOKEN=...
 ```
+
+`LINKWARDEN_TOKEN` needs a local-only Secrets Store secret with the same name (`wrangler
+secrets-store secret create <store-id> --name linkwarden-token --scopes workers`, omitting
+`--remote`) so `wrangler dev` has something to read.
 
 ## Gotchas
 
