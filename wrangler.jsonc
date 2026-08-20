@@ -22,6 +22,16 @@
       ]
     }
   ],
+  "vars": {
+    "LINKWARDEN_URL": "http://mediaserver:9000"
+  },
+  "vpc_services": [
+    {
+      "binding": "LINKWARDEN_VPC",
+      "service_id": "01a0203c-baee-7381-bcb5-964ffff962f6",
+      "remote": true
+    }
+  ],
   "secrets_store_secrets": [
     {
       "binding": "LINKWARDEN_TOKEN",

@@ -1,5 +1,8 @@
 export interface Env {
   LINKWARDEN_MCP: DurableObjectNamespace;
+  /** Workers VPC service binding pointing at the Linkwarden host. */
+  LINKWARDEN_VPC: Fetcher;
+  /** Only supplies the URL/Host header; the VPC service decides where the request goes. */
   LINKWARDEN_URL: string;
   LINKWARDEN_TOKEN: SecretsStoreSecret;
 }

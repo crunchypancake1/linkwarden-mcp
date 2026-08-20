@@ -1,14 +1,23 @@
 import type { Collection, Link, LinkPage, SearchParams, Tag } from "../types";
 
+/**
+ * Anything with a `fetch` method: the Workers VPC service binding in production,
+ * a stub in tests. Structurally compatible with `Fetcher`.
+ */
+export interface HttpFetcher {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+
 export class LinkwardenClient {
   constructor(
+    private readonly fetcher: HttpFetcher,
     private readonly baseUrl: string,
     private readonly token: string,
   ) {}
 
   private async rawFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const url = `${this.baseUrl.replace(/\/$/, "")}${path}`;
-    const res = await fetch(url, {
+    const res = await this.fetcher.fetch(url, {
       ...init,
       headers: {
         "Authorization": `Bearer ${this.token}`,

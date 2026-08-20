@@ -28,12 +28,16 @@ a binding change before committing), but the source of truth for what's live is 
 
 This is a Cloudflare Workers project that exposes Linkwarden bookmarks as an MCP (Model Context
 Protocol) server. It's a thin, stateless passthrough: every tool call goes straight to the
-Linkwarden REST API on your live instance — there is no index, cache, or background sync.
+Linkwarden REST API on your live instance — there is no index, cache, or background sync. The
+instance is private; the Worker reaches it through a [Workers VPC](https://developers.cloudflare.com/workers-vpc/)
+service binding rather than over the public internet.
 
 ```
 MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durable Object)
                                                   │
-                                    LINKWARDEN_URL + LINKWARDEN_TOKEN → Linkwarden API
+                                     LINKWARDEN_VPC binding (+ LINKWARDEN_TOKEN)
+                                                  │
+                                    Cloudflare Tunnel → Linkwarden API (private)
 ```
 
 ### Key modules
@@ -47,7 +51,8 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 - **`src/mcp/tools/collections.ts`** — `list_collections`.
 - **`src/mcp/tools/tags.ts`** — `list_tags`.
 - **`src/linkwarden/api.ts`** — `LinkwardenClient`: thin wrapper over the Linkwarden REST API
-  (search, list, get, create, archive links; list collections/tags).
+  (search, list, get, create, archive links; list collections/tags). It never calls global `fetch`;
+  it takes an `HttpFetcher` (the `LINKWARDEN_VPC` binding in production, a stub in tests).
 - **`src/types.ts`** — Shared types: `Env`, `Link`, `LinkPage`, `Collection`, `Tag`, `SearchParams`.
 
 ### Bindings (wrangler.jsonc)
@@ -55,20 +60,19 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 | Binding | Type | Purpose |
 |---|---|---|
 | `LINKWARDEN_MCP` | Durable Object | McpAgent instance (with SQLite) |
+| `LINKWARDEN_VPC` | VPC Service | Private route to the Linkwarden host (`vpc_services`, service `01a0203c-baee-7381-bcb5-964ffff962f6`) |
 | `LINKWARDEN_TOKEN` | Secrets Store binding | Linkwarden API token, read via `await env.LINKWARDEN_TOKEN.get()` |
 
-`LINKWARDEN_URL` is a Wrangler secret (`wrangler secret put`). `LINKWARDEN_TOKEN` is a
+`LINKWARDEN_URL` is a plain var in `wrangler.jsonc` (`http://mediaserver:9000`) — not a secret, and
+not what routes the request. A VPC Service binding always connects to the host and port registered
+on the service; the URL only supplies the path plus the `Host` header. `LINKWARDEN_TOKEN` is a
 [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding declared under
 `secrets_store_secrets` in `wrangler.jsonc` (store `d947ac5bb8ef4800ac46fc59128a1a09`, secret name
 `linkwarden-token`), reused across Workers rather than set per-project. It's an async binding —
 resolved once in `agent.ts#init` — not a plain string like `LINKWARDEN_URL`.
 
-`wrangler secret put` only affects deployed Workers. For `npm run dev`, put `LINKWARDEN_URL` in a
-gitignored `.dev.vars` at the repo root:
-
-```
-LINKWARDEN_URL=https://your-linkwarden.example.com
-```
+The VPC binding is declared `remote: true`, so `npm run dev` uses the real VPC Service — there is no
+local emulation, and the tunnel must be up for local dev to work.
 
 `LINKWARDEN_TOKEN` needs a local-only Secrets Store secret with the same name (`wrangler
 secrets-store secret create <store-id> --name linkwarden-token --scopes workers`, omitting
@@ -88,12 +92,15 @@ secrets-store secret create <store-id> --name linkwarden-token --scopes workers`
   `allLinksForCollection` and ignores `cursor`. Only the unfiltered path is cursor-paginated.
 - **Renaming the DO class needs a migration** — `LinkwardenMCP` is bound by class name in
   `wrangler.jsonc` under migration tag `v1` (`new_sqlite_classes`). A rename requires a new tag.
+- **VPC Service bindings ignore the URL's host and port** — routing comes from the service
+  definition (`wrangler vpc service list`). Changing `LINKWARDEN_URL` changes the `Host` header and
+  path, not the destination; to point at a different host, edit or recreate the VPC Service.
 - **`noUncheckedIndexedAccess` is on** — `arr[0]` types as `T | undefined`; index access needs a
   guard or `?.`.
 
 ## Testing
 
-`test/linkwarden-api.test.ts` covers `LinkwardenClient` only, stubbing `globalThis.fetch` with
-`vi.spyOn` and asserting on the URL and `init` it receives. Vitest runs in a plain `node`
+`test/linkwarden-api.test.ts` covers `LinkwardenClient` only, passing a `{ fetch: vi.fn() }` stub in
+place of the VPC binding and asserting on the URL and `init` it receives. Vitest runs in a plain `node`
 environment (not `@cloudflare/vitest-pool-workers`), so Durable Object state and the MCP tool
 handlers aren't covered — test new API surface at the client layer.

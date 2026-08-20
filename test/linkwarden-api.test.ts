@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { LinkwardenClient } from "../src/linkwarden/api";
+import { LinkwardenClient, type HttpFetcher } from "../src/linkwarden/api";
 import type { Link, Collection, Tag } from "../src/types";
 
 const BASE_URL = "https://lw.example.com";
@@ -11,14 +11,16 @@ function makeLink(id: number, extras: Partial<Link> = {}): Link {
 
 describe("LinkwardenClient", () => {
   let client: LinkwardenClient;
+  let fetcher: { fetch: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    client = new LinkwardenClient(BASE_URL, TOKEN);
     vi.restoreAllMocks();
+    fetcher = { fetch: vi.fn() };
+    client = new LinkwardenClient(fetcher as unknown as HttpFetcher, BASE_URL, TOKEN);
   });
 
   it("searchLinks attaches bearer token and query params", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    const spy = fetcher.fetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ response: [makeLink(1)], nextCursor: null }), { status: 200 })
     );
 
@@ -34,7 +36,7 @@ describe("LinkwardenClient", () => {
   });
 
   it("getLink fetches a single link by ID", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    const spy = fetcher.fetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ response: makeLink(42) }), { status: 200 })
     );
     const link = await client.getLink(42);
@@ -44,7 +46,7 @@ describe("LinkwardenClient", () => {
   });
 
   it("createLink POSTs with body", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    const spy = fetcher.fetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ response: makeLink(99) }), { status: 200 })
     );
     const link = await client.createLink({ url: "https://x.com", name: "X", collectionId: 1 });
@@ -55,7 +57,7 @@ describe("LinkwardenClient", () => {
 
   it("getCollections returns array", async () => {
     const cols: Collection[] = [{ id: 1, name: "Inbox" }];
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    fetcher.fetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ response: cols }), { status: 200 })
     );
     const result = await client.getCollections();
@@ -65,7 +67,7 @@ describe("LinkwardenClient", () => {
 
   it("getTags unwraps the data.tags envelope", async () => {
     const tags: Tag[] = [{ id: 1, name: "login" }];
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    fetcher.fetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ data: { tags } }), { status: 200 })
     );
     const result = await client.getTags();
@@ -74,7 +76,7 @@ describe("LinkwardenClient", () => {
   });
 
   it("allLinksForCollection pages through all links", async () => {
-    const spy = vi.spyOn(globalThis, "fetch")
+    const spy = fetcher.fetch
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ response: [makeLink(1)], nextCursor: 1 }), { status: 200 })
       )
@@ -93,8 +95,18 @@ describe("LinkwardenClient", () => {
     expect(secondUrl).toContain("cursor=1");
   });
 
+  it("routes requests through the binding, not global fetch", async () => {
+    const globalSpy = vi.spyOn(globalThis, "fetch");
+    fetcher.fetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ response: makeLink(7) }), { status: 200 })
+    );
+    await client.getLink(7);
+    expect(fetcher.fetch).toHaveBeenCalledTimes(1);
+    expect(globalSpy).not.toHaveBeenCalled();
+  });
+
   it("throws on non-ok response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+    fetcher.fetch.mockResolvedValueOnce(
       new Response("Unauthorized", { status: 401 })
     );
     await expect(client.getLink(1)).rejects.toThrow("Linkwarden API error: 401");

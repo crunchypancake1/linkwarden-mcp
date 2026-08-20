@@ -8,12 +8,16 @@ archive links directly against your own Linkwarden instance.
 ## How it works
 
 Every tool call goes straight to the Linkwarden REST API on your live instance — there's no index,
-cache, or background sync involved.
+cache, or background sync involved. The instance isn't exposed publicly: requests reach it over a
+[Workers VPC](https://developers.cloudflare.com/workers-vpc/) service binding, which tunnels to the
+private host via `cloudflared`.
 
 ```
 MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durable Object)
                                                   │
-                                    LINKWARDEN_URL + LINKWARDEN_TOKEN → Linkwarden API
+                                     LINKWARDEN_VPC binding (+ LINKWARDEN_TOKEN)
+                                                  │
+                                    Cloudflare Tunnel → Linkwarden API (private)
 ```
 
 `LinkwardenMCP` is a [`McpAgent`](https://github.com/cloudflare/agents) hosted on a Durable Object.
@@ -34,7 +38,25 @@ MCP client ──HTTP/SSE──► Worker (/mcp) ──► LinkwardenMCP (Durabl
 
 ```bash
 npm install
-wrangler secret put LINKWARDEN_URL     # base URL of your Linkwarden instance
+```
+
+Linkwarden is reached through a VPC Service, created once against the Cloudflare Tunnel that runs on
+the same network as the instance:
+
+```bash
+wrangler vpc service create linkwarden \
+  --type http --tunnel-id <tunnel-id> --hostname <internal-host> --http-port 9000
+```
+
+`wrangler.jsonc` binds the returned service ID under `vpc_services`, and the `LINKWARDEN_URL` var
+supplies the URL used for the request path and `Host` header (the VPC Service — not this URL —
+decides where the request actually goes):
+
+```jsonc
+"vars": { "LINKWARDEN_URL": "http://mediaserver:9000" },
+"vpc_services": [
+  { "binding": "LINKWARDEN_VPC", "service_id": "<service-id>", "remote": true }
+]
 ```
 
 `LINKWARDEN_TOKEN` (a Linkwarden API access token) is read from Cloudflare's
@@ -55,7 +77,8 @@ wrangler secrets-store secret create <store-id> \
 ```
 
 For local dev, create a local-only secret with the same name (omit `--remote`) so `wrangler dev`
-has something to read.
+has something to read. The VPC binding is marked `remote: true`, so `wrangler dev` connects to the
+real VPC Service — there is no local emulation of it.
 
 See `CLAUDE.md` for the full architecture and binding reference.
 
